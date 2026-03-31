@@ -125,7 +125,7 @@ export default class GameScene extends Phaser.Scene {
       delay: this.spawnDelay(), callback: this.spawnEnemy, callbackScope: this, loop: true,
     });
     this.enemyFireEvent = this.time.addEvent({
-      delay: 2200, callback: this.enemiesShoot, callbackScope: this, loop: true,
+      delay: this.enemyFireDelay(), callback: this.enemiesShoot, callbackScope: this, loop: true,
     });
     // Wave timer — fires to TRIGGER boss spawn, not to advance wave directly
     this.waveEvent = this.time.addEvent({
@@ -550,6 +550,10 @@ export default class GameScene extends Phaser.Scene {
       fontSize: '13px', fontFamily: 'Arial Black, sans-serif', color: '#ff8800',
     }).setOrigin(1, 0).setDepth(d);
 
+    this.add.text(6, 2, 'v0.0.8', {
+      fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
+    }).setDepth(d).setAlpha(0.45);
+
     // Boss health bar — hidden until boss spawns
     const bby = 64;
     const bbw = width - 24;
@@ -825,7 +829,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   weakestEnemyHP() {
-    return ENEMY_HEALTH + Math.floor((this.wave - 1) / 3);
+    return Math.max(1, Math.round(ENEMY_HEALTH * Math.pow(1.2, this.wave - 1)));
   }
 
   spawnBoss() {
@@ -947,6 +951,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.boss || !this.boss.active || this.gameOver) return;
     if (this.bossSpecRunning) return;
     this.bossSpecRunning = true;
+    audioManager.sfxBossWarning();
 
     const numSafe    = Phaser.Math.Between(2, 3);
     const safeZones  = [];
@@ -1096,9 +1101,12 @@ export default class GameScene extends Phaser.Scene {
     this.wave++;
     this.waveTxt.setText('WAVE ' + this.wave);
     audioManager.sfxWaveComplete();
+    // Heal player 20% on wave completion
+    this.playerHealth = Math.min(100, this.playerHealth + 20);
     // Resume enemy spawning with updated rate
     this.enemySpawnEvent.delay  = this.spawnDelay();
     this.enemySpawnEvent.paused = false;
+    this.enemyFireEvent.delay   = this.enemyFireDelay();
 
     const { width, height } = this.scale;
     const txt = this.add.text(width / 2, height / 2, 'WAVE ' + this.wave, {
@@ -1119,6 +1127,10 @@ export default class GameScene extends Phaser.Scene {
     return Math.max(600, 1600 - (this.wave - 1) * 120);
   }
 
+  enemyFireDelay() {
+    return Math.max(400, Math.round(2200 * Math.pow(0.9, this.wave - 1)));
+  }
+
   spawnEnemy() {
     if (this.gameOver) return;
     const x     = Phaser.Math.Between(24, this.W - 24);
@@ -1130,7 +1142,7 @@ export default class GameScene extends Phaser.Scene {
     enemy.waveTween = null;
 
     const pattern = Phaser.Math.Between(0, 2);
-    const baseVY  = Phaser.Math.Between(100, 160) + (this.wave - 1) * 8;
+    const baseVY  = Math.round(Phaser.Math.Between(100, 160) * Math.pow(1.05, this.wave - 1));
 
     if (pattern === 0) {
       enemy.setVelocityY(baseVY);

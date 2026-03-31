@@ -473,6 +473,31 @@ class AudioManager {
     this._tone(800, 50, 1.8, 'sawtooth', 0.5);
   }
 
+  sfxBossWarning() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    // 4 rapid alarm pulses: alternating 880/660 Hz square tones
+    const pulseDur = 0.15;
+    const pulseGap = 0.10;
+    for (let i = 0; i < 4; i++) {
+      const start = t + i * (pulseDur + pulseGap);
+      const osc = this.ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(i % 2 === 0 ? 880 : 660, start);
+      const env = this.ctx.createGain();
+      env.gain.setValueAtTime(0, start);
+      env.gain.linearRampToValueAtTime(0.38, start + 0.01);
+      env.gain.setValueAtTime(0.38, start + pulseDur - 0.02);
+      env.gain.linearRampToValueAtTime(0, start + pulseDur);
+      osc.connect(env);
+      env.connect(this.sfxGain);
+      osc.start(start);
+      osc.stop(start + pulseDur + 0.01);
+    }
+    // Low warning rumble underneath
+    this._tone(180, 90, 0.9, 'sawtooth', 0.18);
+  }
+
   sfxWaveComplete() {
     if (!this.ctx) return;
     // Ascending A minor pentatonic jingle: A4 C5 E5 A5
