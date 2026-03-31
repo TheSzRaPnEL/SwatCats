@@ -1,0 +1,22 @@
+{
+  "name": "swatcats",
+  "version": "1.0.0",
+  "description": "SwatCats - TurboCat F22 aerial combat game",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android",
+    "android": "npm run build && npx cap sync android && npx cap open android"
+  },
+  "dependencies": {
+    "phaser": "^3.70.0",
+    "@capacitor/core": "^6.0.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/android": "^6.0.0"
+  }
+}

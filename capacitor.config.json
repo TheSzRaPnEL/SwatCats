@@ -1,0 +1,14 @@
+{
+  "appId": "pl.hitme.swatcats",
+  "appName": "SwatCats",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "release.keystore",
+      "keystoreAlias": "swatcats"
+    }
+  }
+}
