@@ -1,3 +1,5 @@
+import { audioManager } from '../audio/AudioManager.js';
+
 const PLAYER_SPEED = 336; // 280 × 1.2 (+20%)
 const BULLET_SPEED = 620;
 const FIRE_RATE_MS = 130;
@@ -44,6 +46,8 @@ export default class GameScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.W = width;
     this.H = height;
+
+    audioManager.resume();
 
     // State
     this.score = 0;
@@ -741,6 +745,7 @@ export default class GameScene extends Phaser.Scene {
     b.setVelocityY(-BULLET_SPEED);
     b.setDepth(9);
     b.body.setSize(4, 14);
+    audioManager.sfxShoot();
   }
 
   fireRocket() {
@@ -758,6 +763,7 @@ export default class GameScene extends Phaser.Scene {
     this.rocketCDOverlay.setVisible(true);
     this.rocketBtnBg.setFillStyle(0x221100, 0.88);
     this.showSubRocketButtons();
+    audioManager.sfxRocketLaunch();
   }
 
   fireIceRocket() {
@@ -771,6 +777,7 @@ export default class GameScene extends Phaser.Scene {
     );
     if (!ice) return;
     ice.setVelocityY(-ROCKET_SPEED).setDepth(9);
+    audioManager.sfxIceLaunch();
   }
 
   fireZapRocket() {
@@ -784,6 +791,7 @@ export default class GameScene extends Phaser.Scene {
     );
     if (!zap) return;
     zap.setVelocityY(-ROCKET_SPEED).setDepth(9);
+    audioManager.sfxZapLaunch();
   }
 
   updateRocketCooldown(delta) {
@@ -1033,6 +1041,7 @@ export default class GameScene extends Phaser.Scene {
 
   onBossDied() {
     if (!this.boss) return;
+    audioManager.sfxBossDie();
     const bx = this.boss.x;
     const by = this.boss.y;
 
@@ -1086,6 +1095,7 @@ export default class GameScene extends Phaser.Scene {
   advanceWave() {
     this.wave++;
     this.waveTxt.setText('WAVE ' + this.wave);
+    audioManager.sfxWaveComplete();
     // Resume enemy spawning with updated rate
     this.enemySpawnEvent.delay  = this.spawnDelay();
     this.enemySpawnEvent.paused = false;
@@ -1255,6 +1265,7 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: outer, radius: ROCKET_AOE_RADIUS, alpha: 0, duration: 420, onComplete: () => outer.destroy() });
     const inner = this.add.circle(x, y, 6, 0xffee44, 1).setDepth(16);
     this.tweens.add({ targets: inner, radius: ROCKET_AOE_RADIUS * 0.55, alpha: 0, duration: 280, onComplete: () => inner.destroy() });
+    audioManager.sfxRocketExplode();
   }
 
   triggerIceExplosion(x, y) {
@@ -1274,6 +1285,7 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: sg, alpha: 0, duration: 600, onComplete: () => sg.destroy() });
     this.cameras.main.flash(120, 100, 180, 255, false);
     this.cameras.main.shake(180, 0.008);
+    audioManager.sfxIceExplode();
 
     // Damage + slow regular enemies
     this.enemies.getChildren().filter(e => e.active).forEach(enemy => {
@@ -1313,6 +1325,7 @@ export default class GameScene extends Phaser.Scene {
       if (hitsLeft <= 0) return;
       hitsLeft--;
 
+      audioManager.sfxZapHit();
       // Hit all active regular enemies
       this.enemies.getChildren().forEach(enemy => {
         if (!enemy.active) return;
@@ -1367,12 +1380,14 @@ export default class GameScene extends Phaser.Scene {
     this.killCount += 1;
     const exp = this.add.circle(enemy.x, enemy.y, 6, 0xff5500, 1).setDepth(15);
     this.tweens.add({ targets: exp, radius: 28, alpha: 0, duration: 280, onComplete: () => exp.destroy() });
+    audioManager.sfxEnemyDie();
     enemy.destroy();
   }
 
   damagePlayer(amount) {
     this.playerHealth -= amount;
     this.cameras.main.flash(80, 255, 0, 0, true);
+    audioManager.sfxPlayerHit();
     if (this.playerHealth <= 0) {
       this.playerHealth = 0;
       this.triggerGameOver();
@@ -1385,6 +1400,7 @@ export default class GameScene extends Phaser.Scene {
 
   triggerGameOver() {
     this.gameOver = true;
+    audioManager.sfxPlayerDie();
     this.player.setVelocity(0, 0).setTint(0xff2200);
     this.thrMain.clear(); this.thrLeft.clear(); this.thrRight.clear();
     this.enemySpawnEvent.remove();

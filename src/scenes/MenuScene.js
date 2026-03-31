@@ -1,3 +1,5 @@
+import { audioManager } from '../audio/AudioManager.js';
+
 export default class MenuScene extends Phaser.Scene {
   constructor() {
     super({ key: 'MenuScene' });
@@ -5,6 +7,9 @@ export default class MenuScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
+
+    // Start pre-rendering music in background (no user gesture needed for OfflineAudioContext)
+    audioManager.init();
 
     this.createStarField();
 
@@ -67,9 +72,14 @@ export default class MenuScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    btn.on('pointerdown', () => this.scene.start('GameScene'));
-    this.input.keyboard.on('keydown-SPACE', () => this.scene.start('GameScene'));
-    this.input.keyboard.on('keydown-ENTER', () => this.scene.start('GameScene'));
+    const startGame = () => {
+      audioManager.startMusic();
+      this.scene.start('GameScene');
+    };
+
+    btn.on('pointerdown', startGame);
+    this.input.keyboard.on('keydown-SPACE', startGame);
+    this.input.keyboard.on('keydown-ENTER', startGame);
   }
 
   createStarField() {
