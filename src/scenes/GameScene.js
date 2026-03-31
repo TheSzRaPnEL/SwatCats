@@ -1,4 +1,4 @@
-const PLAYER_SPEED = 280;
+const PLAYER_SPEED = 336; // 280 × 1.2 (+20%)
 const BULLET_SPEED = 620;
 const FIRE_RATE_MS = 130;
 const ROCKET_SPEED = 420;
@@ -88,6 +88,7 @@ export default class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(10);
     this.player.body.setSize(22, 68).setOffset(29, 16);
+    this.player.setScale(0.9); // 10% smaller
 
     // Keyboard
     this.cursors  = this.input.keyboard.createCursorKeys();
@@ -733,8 +734,8 @@ export default class GameScene extends Phaser.Scene {
 
   shootBullet() {
     const r  = this.player.rotation;
-    const bx = this.player.x - 48 * Math.sin(r);
-    const by = this.player.y - 48 * Math.cos(r);
+    const bx = this.player.x - 43 * Math.sin(r);
+    const by = this.player.y - 43 * Math.cos(r);
     const b  = this.bullets.create(bx, by, 'bullet');
     if (!b) return;
     b.setVelocityY(-BULLET_SPEED);
@@ -911,8 +912,14 @@ export default class GameScene extends Phaser.Scene {
   // Boss fires 5-bullet aimed spread (like 5 weak enemies combined)
   bossShoot() {
     if (!this.boss || !this.boss.active || this.gameOver) return;
+    // Silence during and after special ability
+    if (this.bossSpecRunning) return;
+    // Silence for 1s before special ability fires (grace warning window)
+    if (this.bossSpecTimer && this.bossSpecTimer.getProgress() > (BOSS_SPECIAL_DELAY - 1000) / BOSS_SPECIAL_DELAY) return;
     const count = 5;
-    const spread = 0.48; // total radians of spread
+    // Spread sized so bullets are at least 2× TurboCat widths apart at typical player distance.
+    // TurboCat scaled width ≈ 72px; 2× = 144px gap; at ~480px distance → ~1.5 rad total spread.
+    const spread = 1.5;
     const aim    = Math.atan2(this.player.y - this.boss.y, this.player.x - this.boss.x);
     const speed  = 310 + this.wave * 12;
 
