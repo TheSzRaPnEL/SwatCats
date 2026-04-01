@@ -34,7 +34,7 @@ export class WeaponSystem {
   }
 
   handleFiring(time) {
-    if (this.scene.isFiring || this.fireKey.isDown) {
+    if (this.scene.touchControls.isFiring || this.fireKey.isDown) {
       if (time > this.lastFired + FIRE_RATE_MS) {
         this.lastFired = time;
         this.shootBullet();
