@@ -13,9 +13,9 @@ export class TouchControls {
     this.subRocketTimer = null;
   }
 
-  create(onRocket, onIce, onZap) {
+  create(onRocket, onIce, onZap, onPoison) {
     this._createFireButton();
-    this._createRocketButton(onRocket, onIce, onZap);
+    this._createRocketButton(onRocket, onIce, onZap, onPoison);
     this._createJoystick();
   }
 
@@ -32,7 +32,7 @@ export class TouchControls {
     this.fireBtnBg.on('pointerout',  () => { this.isFiring = false; });
   }
 
-  _createRocketButton(onRocket, onIce, onZap) {
+  _createRocketButton(onRocket, onIce, onZap, onPoison) {
     const rocketBtnX = this.W - 65;
     const rocketBtnY = this.H - 165;
     this.rocketBtnBg = this.scene.add.rectangle(rocketBtnX, rocketBtnY, 115, 65, 0x884400, 0.88)
@@ -46,29 +46,37 @@ export class TouchControls {
       fontSize: '22px', fontFamily: 'Arial Black, sans-serif', color: '#ffffff',
     }).setOrigin(0.5).setDepth(203);
     this.rocketBtnBg.on('pointerdown', onRocket);
-    this._createSubRocketButtons(rocketBtnX, rocketBtnY, onIce, onZap);
+    this._createSubRocketButtons(rocketBtnX, rocketBtnY, onIce, onZap, onPoison);
   }
 
-  _createSubRocketButtons(rocketBtnX, rocketBtnY, onIce, onZap) {
-    const subBtnH = 30, subBtnW = 55, subGap = 4;
+  _createSubRocketButtons(rocketBtnX, rocketBtnY, onIce, onZap, onPoison) {
+    const subBtnH = 30, subBtnW = 42, subGap = 4;
     const subY    = rocketBtnY - 65 / 2 - subBtnH / 2 - 4;
-    const iceBtnX = rocketBtnX - subBtnW / 2 - subGap / 2;
-    const zapBtnX = rocketBtnX + subBtnW / 2 + subGap / 2;
+    const iceBtnX    = rocketBtnX - subBtnW - subGap;
+    const zapBtnX    = rocketBtnX;
+    const poisonBtnX = rocketBtnX + subBtnW + subGap;
 
     this.iceBtnBg = this.scene.add.rectangle(iceBtnX, subY, subBtnW, subBtnH, 0x002255, 0.92)
       .setDepth(200).setInteractive().setStrokeStyle(2, 0x00aaff).setVisible(false);
     this.iceBtnTxt = this.scene.add.text(iceBtnX, subY, 'ICE', {
-      fontSize: '14px', fontFamily: 'Arial Black, sans-serif', color: '#88eeff',
+      fontSize: '13px', fontFamily: 'Arial Black, sans-serif', color: '#88eeff',
     }).setOrigin(0.5).setDepth(201).setVisible(false);
 
     this.zapBtnBg = this.scene.add.rectangle(zapBtnX, subY, subBtnW, subBtnH, 0x332200, 0.92)
       .setDepth(200).setInteractive().setStrokeStyle(2, 0xffdd00).setVisible(false);
     this.zapBtnTxt = this.scene.add.text(zapBtnX, subY, 'ZAP', {
-      fontSize: '14px', fontFamily: 'Arial Black, sans-serif', color: '#ffee44',
+      fontSize: '13px', fontFamily: 'Arial Black, sans-serif', color: '#ffee44',
+    }).setOrigin(0.5).setDepth(201).setVisible(false);
+
+    this.poisonBtnBg = this.scene.add.rectangle(poisonBtnX, subY, subBtnW, subBtnH, 0x0a2200, 0.92)
+      .setDepth(200).setInteractive().setStrokeStyle(2, 0x55ff00).setVisible(false);
+    this.poisonBtnTxt = this.scene.add.text(poisonBtnX, subY, 'PSN', {
+      fontSize: '13px', fontFamily: 'Arial Black, sans-serif', color: '#88ff44',
     }).setOrigin(0.5).setDepth(201).setVisible(false);
 
     this.iceBtnBg.on('pointerdown', onIce);
     this.zapBtnBg.on('pointerdown', onZap);
+    this.poisonBtnBg.on('pointerdown', onPoison);
   }
 
   _createJoystick() {
@@ -118,7 +126,7 @@ export class TouchControls {
   }
 
   showSubRocketButtons() {
-    [this.iceBtnBg, this.iceBtnTxt, this.zapBtnBg, this.zapBtnTxt]
+    [this.iceBtnBg, this.iceBtnTxt, this.zapBtnBg, this.zapBtnTxt, this.poisonBtnBg, this.poisonBtnTxt]
       .forEach(o => o.setVisible(true).setAlpha(1));
     if (this.subRocketTimer) { this.subRocketTimer.remove(); this.subRocketTimer = null; }
     this.subRocketTimer = this.scene.time.delayedCall(
@@ -127,7 +135,7 @@ export class TouchControls {
   }
 
   hideSubRocketButtons() {
-    [this.iceBtnBg, this.iceBtnTxt, this.zapBtnBg, this.zapBtnTxt]
+    [this.iceBtnBg, this.iceBtnTxt, this.zapBtnBg, this.zapBtnTxt, this.poisonBtnBg, this.poisonBtnTxt]
       .forEach(o => o.setVisible(false));
     if (this.subRocketTimer) { this.subRocketTimer.remove(); this.subRocketTimer = null; }
   }

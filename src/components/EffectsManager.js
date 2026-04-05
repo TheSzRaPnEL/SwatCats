@@ -3,6 +3,7 @@ import {
   ROCKET_AOE_RADIUS,
   ICE_AOE_RADIUS, ICE_DAMAGE, ICE_SLOW_FACTOR, ICE_SLOW_DURATION,
   ZAP_DAMAGE, ZAP_HITS, ZAP_INTERVAL,
+  POISON_AOE_RADIUS, POISON_DAMAGE, POISON_DOT_DAMAGE, POISON_DOT_TICKS, POISON_DOT_INTERVAL,
 } from '../constants/gameConstants.js';
 
 export class EffectsManager {
@@ -160,6 +161,60 @@ export class EffectsManager {
     this.scene.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
   }
 
+  // ── Poison explosion ──────────────────────────────────────────────────────
+
+  triggerPoisonExplosion(x, y) {
+    this._poisonVisual(x, y);
+    this.scene.cameras.main.flash(100, 0, 180, 0, false);
+    this.scene.cameras.main.shake(150, 0.006);
+    audioManager.sfxPoisonExplode();
+    this._poisonAffectEnemies(x, y);
+    this.scene.score += 5 * this.scene.wave;
+  }
+
+  _poisonVisual(x, y) {
+    const outer = this.scene.add.circle(x, y, 10, 0x22aa00, 0.8).setDepth(15);
+    this.scene.tweens.add({ targets: outer, radius: POISON_AOE_RADIUS, alpha: 0, duration: 700, onComplete: () => outer.destroy() });
+    const mid = this.scene.add.circle(x, y, 8, 0x88ff44, 0.65).setDepth(16);
+    this.scene.tweens.add({ targets: mid, radius: POISON_AOE_RADIUS * 0.6, alpha: 0, duration: 500, onComplete: () => mid.destroy() });
+    const core = this.scene.add.circle(x, y, 6, 0xaaffaa, 1).setDepth(17);
+    this.scene.tweens.add({ targets: core, radius: 35, alpha: 0, duration: 220, onComplete: () => core.destroy() });
+    const sg = this.scene.add.graphics().setDepth(16);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      sg.lineStyle(2, 0x55ff00, 0.65);
+      sg.lineBetween(x, y, x + Math.cos(a) * POISON_AOE_RADIUS * 0.45, y + Math.sin(a) * POISON_AOE_RADIUS * 0.45);
+    }
+    this.scene.tweens.add({ targets: sg, alpha: 0, duration: 700, onComplete: () => sg.destroy() });
+  }
+
+  _poisonAffectEnemies(x, y) {
+    this.scene.enemies.getChildren().filter(e => e.active).forEach(enemy => {
+      if (Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y) > POISON_AOE_RADIUS) return;
+      this.flashPoison(enemy);
+      enemy.health -= POISON_DAMAGE;
+      if (enemy.health <= 0) { this.killEnemy(enemy); return; }
+      if (!enemy.poisoned) {
+        enemy.poisoned = true;
+        enemy.setTint(0x55dd00);
+        let ticks = POISON_DOT_TICKS;
+        const doDot = () => {
+          if (!enemy.active || ticks <= 0) {
+            if (enemy.active) { enemy.poisoned = false; enemy.clearTint(); }
+            return;
+          }
+          ticks--;
+          audioManager.sfxPoisonTick();
+          this.flashPoison(enemy);
+          enemy.health -= POISON_DOT_DAMAGE;
+          if (enemy.health <= 0) { this.killEnemy(enemy); return; }
+          this.scene.time.delayedCall(POISON_DOT_INTERVAL, doDot);
+        };
+        this.scene.time.delayedCall(POISON_DOT_INTERVAL, doDot);
+      }
+    });
+  }
+
   // ── Flashes ───────────────────────────────────────────────────────────────
 
   flashEnemy(enemy) {
@@ -175,5 +230,9 @@ export class EffectsManager {
       targets: enemy, alpha: 0.2, duration: 40, yoyo: true,
       onComplete: () => { if (enemy.active) enemy.setAlpha(1); },
     });
+  }
+
+  flashPoison(enemy) {
+    this.scene.tweens.add({ targets: enemy, alpha: 0.25, duration: 55, yoyo: true });
   }
 }

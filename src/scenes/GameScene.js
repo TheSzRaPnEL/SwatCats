@@ -64,13 +64,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _createPhysicsGroups() {
-    this.bullets      = this.physics.add.group();
-    this.rockets      = this.physics.add.group();
-    this.iceRockets   = this.physics.add.group();
-    this.zapRockets   = this.physics.add.group();
-    this.enemies      = this.physics.add.group();
-    this.enemyBullets = this.physics.add.group();
-    this.bossGroup    = this.physics.add.group();
+    this.bullets       = this.physics.add.group();
+    this.rockets       = this.physics.add.group();
+    this.iceRockets    = this.physics.add.group();
+    this.zapRockets    = this.physics.add.group();
+    this.poisonRockets = this.physics.add.group();
+    this.enemies       = this.physics.add.group();
+    this.enemyBullets  = this.physics.add.group();
+    this.bossGroup     = this.physics.add.group();
   }
 
   _createPlayer() {
@@ -91,30 +92,33 @@ export default class GameScene extends Phaser.Scene {
 
   _initComponentSystems() {
     this.weaponSystem.init(
-      this.player, this.bullets, this.rockets, this.iceRockets, this.zapRockets
+      this.player, this.bullets, this.rockets, this.iceRockets, this.zapRockets, this.poisonRockets
     );
     this.thrusterRenderer; // graphics already constructed
     this.touchControls.create(
       () => this.weaponSystem.fireRocket(),
       () => this.weaponSystem.fireIceRocket(),
-      () => this.weaponSystem.fireZapRocket()
+      () => this.weaponSystem.fireZapRocket(),
+      () => this.weaponSystem.firePoisonRocket()
     );
   }
 
   _setupCollisions() {
     // Player weapons vs enemies
-    this.physics.add.overlap(this.bullets,      this.enemies,   this._onBulletHitEnemy,  null, this);
-    this.physics.add.overlap(this.rockets,      this.enemies,   this._onRocketHitEnemy,  null, this);
-    this.physics.add.overlap(this.iceRockets,   this.enemies,   this._onIceRocketHit,    null, this);
-    this.physics.add.overlap(this.zapRockets,   this.enemies,   this._onZapRocketHit,    null, this);
+    this.physics.add.overlap(this.bullets,       this.enemies,   this._onBulletHitEnemy,   null, this);
+    this.physics.add.overlap(this.rockets,       this.enemies,   this._onRocketHitEnemy,   null, this);
+    this.physics.add.overlap(this.iceRockets,    this.enemies,   this._onIceRocketHit,     null, this);
+    this.physics.add.overlap(this.zapRockets,    this.enemies,   this._onZapRocketHit,     null, this);
+    this.physics.add.overlap(this.poisonRockets, this.enemies,   this._onPoisonRocketHit,  null, this);
     // Enemy attacks vs player
-    this.physics.add.overlap(this.enemyBullets, this.player,    this._onEnemyBulletHit,  null, this);
-    this.physics.add.overlap(this.enemies,      this.player,    this._onEnemyCollide,    null, this);
+    this.physics.add.overlap(this.enemyBullets,  this.player,    this._onEnemyBulletHit,   null, this);
+    this.physics.add.overlap(this.enemies,        this.player,    this._onEnemyCollide,      null, this);
     // Player weapons vs boss
-    this.physics.add.overlap(this.bullets,      this.bossGroup, this._onBulletHitBoss,   null, this);
-    this.physics.add.overlap(this.rockets,      this.bossGroup, this._onRocketHitBoss,   null, this);
-    this.physics.add.overlap(this.iceRockets,   this.bossGroup, this._onIceHitBoss,      null, this);
-    this.physics.add.overlap(this.zapRockets,   this.bossGroup, this._onZapHitBoss,      null, this);
+    this.physics.add.overlap(this.bullets,       this.bossGroup, this._onBulletHitBoss,    null, this);
+    this.physics.add.overlap(this.rockets,       this.bossGroup, this._onRocketHitBoss,    null, this);
+    this.physics.add.overlap(this.iceRockets,    this.bossGroup, this._onIceHitBoss,       null, this);
+    this.physics.add.overlap(this.zapRockets,    this.bossGroup, this._onZapHitBoss,       null, this);
+    this.physics.add.overlap(this.poisonRockets, this.bossGroup, this._onPoisonHitBoss,    null, this);
     // Boss body vs player
     this.physics.add.overlap(this.bossGroup,    this.player,    this._onBossCollide,     null, this);
   }
@@ -239,6 +243,11 @@ export default class GameScene extends Phaser.Scene {
     zapRocket.destroy();
   }
 
+  _onPoisonRocketHit(poisonRocket, _enemy) {
+    this.effectsManager.triggerPoisonExplosion(poisonRocket.x, poisonRocket.y);
+    poisonRocket.destroy();
+  }
+
   _onEnemyBulletHit(_player, bullet) {
     bullet.destroy();
     this.damagePlayer(8);
@@ -268,6 +277,10 @@ export default class GameScene extends Phaser.Scene {
 
   _onZapHitBoss(zapRocket, _boss) {
     this.bossController.onZapHitBoss(zapRocket);
+  }
+
+  _onPoisonHitBoss(poisonRocket, _boss) {
+    this.bossController.onPoisonHitBoss(poisonRocket);
   }
 
   _onBossCollide(_player, _boss) {
@@ -353,6 +366,12 @@ export default class GameScene extends Phaser.Scene {
     this.zapRockets.getChildren().forEach(obj => {
       if (obj.y > this.H + margin || obj.y < -margin || obj.x < -margin || obj.x > this.W + margin) {
         this.effectsManager.triggerZapChain(obj.x, Math.max(obj.y, 20));
+        obj.destroy();
+      }
+    });
+    this.poisonRockets.getChildren().forEach(obj => {
+      if (obj.y > this.H + margin || obj.y < -margin || obj.x < -margin || obj.x > this.W + margin) {
+        this.effectsManager.triggerPoisonExplosion(obj.x, Math.max(obj.y, 20));
         obj.destroy();
       }
     });

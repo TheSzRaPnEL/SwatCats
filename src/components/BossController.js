@@ -3,6 +3,7 @@ import {
   BOSS_HP_MULT, BOSS_FIRE_RATE, BOSS_SPECIAL_DELAY, BOSS_SPECIAL_WARN,
   BOSS_SAFE_RADIUS, BOSS_SPECIAL_DAMAGE, BOSS_ROCKET_DMG, BOSS_ICE_DMG,
   BOSS_ENTRY_Y, ICE_SLOW_FACTOR, ICE_SLOW_DURATION,
+  BOSS_POISON_DMG, BOSS_POISON_DOT, POISON_DOT_TICKS, POISON_DOT_INTERVAL,
 } from '../constants/gameConstants.js';
 
 export class BossController {
@@ -232,6 +233,27 @@ export class BossController {
   onZapHitBoss(zapRocket) {
     zapRocket.destroy();
     this.scene.effectsManager.triggerZapChain(zapRocket.x, zapRocket.y);
+  }
+
+  onPoisonHitBoss(poisonRocket) {
+    poisonRocket.destroy();
+    this.scene.effectsManager.triggerPoisonExplosion(poisonRocket.x, poisonRocket.y);
+    this.damageBoss(BOSS_POISON_DMG);
+    const boss = this.scene.boss;
+    if (!boss || boss.poisoned) return;
+    boss.poisoned = true;
+    boss.setTint(0x55dd00);
+    let ticks = POISON_DOT_TICKS;
+    const doDot = () => {
+      if (!boss.active || ticks <= 0) {
+        if (boss.active) { boss.poisoned = false; boss.clearTint(); }
+        return;
+      }
+      ticks--;
+      this.damageBoss(BOSS_POISON_DOT);
+      if (boss.active) this.scene.time.delayedCall(POISON_DOT_INTERVAL, doDot);
+    };
+    this.scene.time.delayedCall(POISON_DOT_INTERVAL, doDot);
   }
 
   _onBossDied() {

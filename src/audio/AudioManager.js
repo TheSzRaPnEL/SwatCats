@@ -443,6 +443,27 @@ class AudioManager {
     carrier.stop(t + 0.2);
   }
 
+  sfxPoisonLaunch() {
+    if (!this.ctx) return;
+    this._tone(320, 180, 0.28, 'sawtooth', 0.25);
+    this._noise(0.3, 200, 2000, 0.2);
+    this._tone(640, 320, 0.2, 'sine', 0.1);
+  }
+
+  sfxPoisonExplode() {
+    if (!this.ctx) return;
+    this._tone(220, 80, 0.7, 'sawtooth', 0.4);
+    this._noise(0.9, 100, 3000, 0.35);
+    for (const freq of [330, 440, 220]) {
+      this._tone(freq, freq * 0.4, 0.6, 'sine', 0.08);
+    }
+  }
+
+  sfxPoisonTick() {
+    if (!this.ctx) return;
+    this._tone(300, 200, 0.12, 'sine', 0.15);
+  }
+
   sfxPlayerHit() {
     if (!this.ctx) return;
     this._noise(0.2, 300, 3000, 0.5);

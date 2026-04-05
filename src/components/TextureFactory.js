@@ -15,6 +15,7 @@ export class TextureFactory {
     this.makeRocketTexture();
     this.makeIceRocketTexture();
     this.makeZapRocketTexture();
+    this.makePoisonRocketTexture();
   }
 
   makePlayerTexture() {
@@ -229,6 +230,22 @@ export class TextureFactory {
     g.fillStyle(0xffffff,0.8);
     g.fillTriangle(8,10,6,16,10,14); g.fillTriangle(10,14,8,20,12,18);
     g.generateTexture('zapRocket', 18, 34);
+    g.destroy();
+  }
+
+  makePoisonRocketTexture() {
+    if (this.scene.textures.exists('poisonRocket')) return;
+    const g = this.scene.make.graphics({ x: 0, y: 0, add: false });
+    g.fillStyle(0x226600); g.fillRect(4, 6, 10, 22);
+    g.fillStyle(0x55dd00); g.fillTriangle(9, 0, 4, 8, 14, 8);
+    g.fillStyle(0xaaffaa); g.fillTriangle(9, 0, 8, 4, 10, 4);
+    g.fillStyle(0x44aa00);
+    g.fillTriangle(4,18,0,28,6,22); g.fillTriangle(14,18,18,28,12,22);
+    g.fillStyle(0x88ff44,0.7); g.fillRect(6, 28, 6, 5);
+    // Toxic droplets
+    g.fillStyle(0x00ff88,0.9);
+    g.fillCircle(9, 11, 2); g.fillCircle(7, 17, 1.5); g.fillCircle(11, 20, 1.5);
+    g.generateTexture('poisonRocket', 18, 34);
     g.destroy();
   }
 }

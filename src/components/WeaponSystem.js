@@ -4,6 +4,7 @@ import {
   ROCKET_SPEED, ROCKET_COOLDOWN_MS,
 } from '../constants/gameConstants.js';
 
+
 export class WeaponSystem {
   constructor(scene) {
     this.scene  = scene;
@@ -13,21 +14,23 @@ export class WeaponSystem {
     this.rocketReady             = true;
     this.rocketCooldownRemaining = 0;
 
-    this.bullets    = null;
-    this.rockets    = null;
-    this.iceRockets = null;
-    this.zapRockets = null;
+    this.bullets       = null;
+    this.rockets       = null;
+    this.iceRockets    = null;
+    this.zapRockets    = null;
+    this.poisonRockets = null;
 
     this.fireKey   = null;
     this.rocketKey = null;
   }
 
-  init(player, bullets, rockets, iceRockets, zapRockets) {
-    this.player     = player;
-    this.bullets    = bullets;
-    this.rockets    = rockets;
-    this.iceRockets = iceRockets;
-    this.zapRockets = zapRockets;
+  init(player, bullets, rockets, iceRockets, zapRockets, poisonRockets) {
+    this.player        = player;
+    this.bullets       = bullets;
+    this.rockets       = rockets;
+    this.iceRockets    = iceRockets;
+    this.zapRockets    = zapRockets;
+    this.poisonRockets = poisonRockets;
 
     this.fireKey   = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.rocketKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
@@ -97,6 +100,20 @@ export class WeaponSystem {
     if (!zap) return;
     zap.setVelocityY(-ROCKET_SPEED).setDepth(9);
     audioManager.sfxZapLaunch();
+  }
+
+  firePoisonRocket() {
+    if (this.scene.gameOver) return;
+    this.scene.touchControls.hideSubRocketButtons();
+    const r = this.player.rotation;
+    const poison = this.poisonRockets.create(
+      this.player.x - 48 * Math.sin(r),
+      this.player.y - 48 * Math.cos(r),
+      'poisonRocket'
+    );
+    if (!poison) return;
+    poison.setVelocityY(-ROCKET_SPEED).setDepth(9);
+    audioManager.sfxPoisonLaunch();
   }
 
   updateCooldown(delta) {
