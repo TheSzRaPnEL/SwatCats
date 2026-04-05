@@ -6,3 +6,4 @@ ios/
 .DS_Store
 *.keystore
 *.jks
+.env
