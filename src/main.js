@@ -1,26 +1,31 @@
-import Phaser from 'phaser';
-import BootScene from './scenes/BootScene.js';
-import MenuScene from './scenes/MenuScene.js';
-import GameScene from './scenes/GameScene.js';
+import * as THREE from 'three';
+import { audioManager } from './audio/AudioManager.js';
+import { GameScene } from './scenes/GameScene.js';
 
-const config = {
-  type: Phaser.AUTO,
-  width: 480,
-  height: 800,
-  backgroundColor: '#050520',
-  parent: document.body,
-  physics: {
-    default: 'arcade',
-    arcade: { gravity: { y: 0 }, debug: false },
-  },
-  scene: [BootScene, MenuScene, GameScene],
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-  },
-  input: {
-    activePointers: 4,
-  },
-};
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
 
-new Phaser.Game(config);
+const game = new GameScene();
+audioManager.init();
+
+function resize() {
+  const W = window.innerWidth, H = window.innerHeight;
+  renderer.setSize(W, H);
+  game.camera.aspect = W / H;
+  game.camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+let last = 0;
+function loop(ts) {
+  const delta = Math.min((ts - last) / 1000, 0.05);
+  last = ts;
+  game.update(delta);
+  renderer.render(game.threeScene, game.camera);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);

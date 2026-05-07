@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"d:\\\\VS Code Projects\\\\Programs\\\\SwatCats\" -Depth 2)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(npx vite *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)"
+    ]
+  }
+}

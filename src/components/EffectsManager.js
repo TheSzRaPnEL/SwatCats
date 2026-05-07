@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { audioManager } from '../audio/AudioManager.js';
 import {
   ROCKET_AOE_RADIUS,
@@ -6,233 +7,260 @@ import {
   POISON_AOE_RADIUS, POISON_DAMAGE, POISON_DOT_DAMAGE, POISON_DOT_TICKS, POISON_DOT_INTERVAL,
 } from '../constants/gameConstants.js';
 
+// Simple tween objects updated each frame
+class ScaleFadeEffect {
+  constructor(scene, mesh, maxScale, duration, color) {
+    this.scene    = scene;
+    this.mesh     = mesh;
+    this.t        = 0;
+    this.duration = duration;
+    this.maxScale = maxScale;
+    this.done     = false;
+    scene.add(mesh);
+  }
+
+  update(delta) {
+    this.t += delta;
+    const p = Math.min(this.t / this.duration, 1);
+    const s = p * this.maxScale;
+    this.mesh.scale.setScalar(s);
+    this.mesh.material.opacity = 1 - p;
+    if (p >= 1) {
+      this.scene.remove(this.mesh);
+      this.done = true;
+    }
+  }
+}
+
 export class EffectsManager {
   constructor(scene) {
-    this.scene = scene;
+    this.scene   = scene;
+    this._effects = []; // active ScaleFadeEffect objects
   }
 
-  // ── Kill ──────────────────────────────────────────────────────────────────
-
-  killEnemy(enemy) {
-    this.scene.score     += 10 * this.scene.wave;
-    this.scene.killCount += 1;
-    const exp = this.scene.add.circle(enemy.x, enemy.y, 6, 0xff5500, 1).setDepth(15);
-    this.scene.tweens.add({
-      targets: exp, radius: 28, alpha: 0, duration: 280,
-      onComplete: () => exp.destroy(),
+  update(delta) {
+    this._effects = this._effects.filter(e => {
+      e.update(delta);
+      return !e.done;
     });
+  }
+
+  // ── Enemy kill ─────────────────────────────────────────────────────────────
+
+  killEnemy(game, enemy) {
+    game.score += 10 * game.wave;
+    game.killCount++;
+    this._burst(enemy.mesh.position, 0xff5500, 1.5, 0.28);
     audioManager.sfxEnemyDie();
-    enemy.destroy();
+    game.threeScene.remove(enemy.mesh);
+    enemy.active = false;
   }
 
-  // ── Rocket explosion ──────────────────────────────────────────────────────
+  flashEnemy(mesh) {
+    // Brief white flash by changing emissive
+    const mats = this._getMats(mesh);
+    mats.forEach(m => { m.emissive = new THREE.Color(0xffffff); m.emissiveIntensity = 1.5; });
+    setTimeout(() => {
+      mats.forEach(m => { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; });
+    }, 60);
+  }
 
-  triggerRocketExplosion(x, y) {
-    this._rocketBlast(x, y);
-    this.scene.enemies.getChildren().forEach(enemy => {
+  _getMats(mesh) {
+    const out = [];
+    mesh.traverse(o => { if (o.isMesh && o.material) out.push(o.material); });
+    return out;
+  }
+
+  // ── Rocket explosion ───────────────────────────────────────────────────────
+
+  triggerRocketExplosion(game, pos) {
+    this._rocketBlast(pos);
+    game.enemies.forEach(enemy => {
       if (!enemy.active) return;
-      if (Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y) <= ROCKET_AOE_RADIUS)
-        this.killEnemy(enemy);
+      if (enemy.mesh.position.distanceTo(pos) <= ROCKET_AOE_RADIUS) this.killEnemy(game, enemy);
     });
-    this.scene.cameras.main.shake(320, 0.014);
-    this.scene.score += 5 * this.scene.wave;
-  }
-
-  triggerRocketExplosionNoDmg(x, y) {
-    this._rocketBlast(x, y);
-    this.scene.cameras.main.shake(200, 0.010);
-  }
-
-  _rocketBlast(x, y) {
-    const outer = this.scene.add.circle(x, y, 8, 0xff6600, 0.9).setDepth(15);
-    this.scene.tweens.add({
-      targets: outer, radius: ROCKET_AOE_RADIUS, alpha: 0, duration: 420,
-      onComplete: () => outer.destroy(),
-    });
-    const inner = this.scene.add.circle(x, y, 6, 0xffee44, 1).setDepth(16);
-    this.scene.tweens.add({
-      targets: inner, radius: ROCKET_AOE_RADIUS * 0.55, alpha: 0, duration: 280,
-      onComplete: () => inner.destroy(),
-    });
+    game.enemies = game.enemies.filter(e => e.active);
+    game.hud.screenShake();
+    game.score += 5 * game.wave;
     audioManager.sfxRocketExplode();
   }
 
-  // ── Ice explosion ─────────────────────────────────────────────────────────
+  triggerRocketExplosionNoDmg(game, pos) {
+    this._rocketBlast(pos);
+    audioManager.sfxRocketExplode();
+  }
 
-  triggerIceExplosion(x, y) {
-    this._iceVisual(x, y);
-    this.scene.cameras.main.flash(120, 100, 180, 255, false);
-    this.scene.cameras.main.shake(180, 0.008);
+  _rocketBlast(pos) {
+    this._burst(pos, 0xff6600, ROCKET_AOE_RADIUS, 0.42);
+    this._burst(pos, 0xffee44, ROCKET_AOE_RADIUS * 0.55, 0.28);
+  }
+
+  // ── Ice explosion ──────────────────────────────────────────────────────────
+
+  triggerIceExplosion(game, pos) {
+    this._burst(pos, 0x0066ff, ICE_AOE_RADIUS, 0.6);
+    this._burst(pos, 0x88ddff, ICE_AOE_RADIUS * 0.65, 0.45);
+    this._burst(pos, 0xffffff, 0.8, 0.25);
     audioManager.sfxIceExplode();
-    this._iceAffectEnemies(x, y);
-    this.scene.score += 5 * this.scene.wave;
+    this._iceAffect(game, pos);
+    game.score += 5 * game.wave;
+    if (game.boss && game.boss.active) game.bossController.onIceHitBoss();
   }
 
-  _iceVisual(x, y) {
-    const outer = this.scene.add.circle(x, y, 10, 0x0066ff, 0.85).setDepth(15);
-    this.scene.tweens.add({ targets: outer, radius: ICE_AOE_RADIUS, alpha: 0, duration: 600, onComplete: () => outer.destroy() });
-    const mid = this.scene.add.circle(x, y, 8, 0x88ddff, 0.7).setDepth(16);
-    this.scene.tweens.add({ targets: mid, radius: ICE_AOE_RADIUS * 0.65, alpha: 0, duration: 450, onComplete: () => mid.destroy() });
-    const core = this.scene.add.circle(x, y, 6, 0xffffff, 1).setDepth(17);
-    this.scene.tweens.add({ targets: core, radius: 40, alpha: 0, duration: 250, onComplete: () => core.destroy() });
-    const sg = this.scene.add.graphics().setDepth(16);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      sg.lineStyle(2, 0xaaddff, 0.7);
-      sg.lineBetween(x, y, x + Math.cos(a) * ICE_AOE_RADIUS * 0.5, y + Math.sin(a) * ICE_AOE_RADIUS * 0.5);
-    }
-    this.scene.tweens.add({ targets: sg, alpha: 0, duration: 600, onComplete: () => sg.destroy() });
-  }
-
-  _iceAffectEnemies() {
-    this.scene.enemies.getChildren().filter(e => e.active).forEach(enemy => {
-      this.flashIce(enemy);
+  _iceAffect(game, pos) {
+    game.enemies.filter(e => e.active).forEach(enemy => {
+      this.flashIce(enemy.mesh);
       enemy.health -= ICE_DAMAGE;
-      if (enemy.health <= 0) { this.killEnemy(enemy); return; }
+      if (enemy.health <= 0) { this.killEnemy(game, enemy); return; }
       if (!enemy.slowed) {
-        enemy.origVX = enemy.body.velocity.x;
-        enemy.origVY = enemy.body.velocity.y;
+        enemy.origVX = enemy.vx;
+        enemy.origVZ = enemy.vz;
         enemy.slowed = true;
-        enemy.setTint(0x88ccff);
-        enemy.body.setVelocity(enemy.origVX * ICE_SLOW_FACTOR, enemy.origVY * ICE_SLOW_FACTOR);
-        if (enemy.waveTween) enemy.waveTween.timeScale = ICE_SLOW_FACTOR;
-        this.scene.time.delayedCall(ICE_SLOW_DURATION, () => {
+        enemy.vx *= ICE_SLOW_FACTOR;
+        enemy.vz *= ICE_SLOW_FACTOR;
+        enemy.sineFreq *= ICE_SLOW_FACTOR;
+        this._tintMesh(enemy.mesh, 0x88ccff);
+        setTimeout(() => {
           if (!enemy.active) return;
           enemy.slowed = false;
-          enemy.clearTint();
-          enemy.body.setVelocity(enemy.origVX, enemy.origVY);
-          if (enemy.waveTween) enemy.waveTween.timeScale = 1;
-        });
+          enemy.vx = enemy.origVX;
+          enemy.vz = enemy.origVZ;
+          enemy.sineFreq /= ICE_SLOW_FACTOR;
+          this._clearTint(enemy.mesh);
+        }, ICE_SLOW_DURATION);
       }
     });
+    game.enemies = game.enemies.filter(e => e.active);
   }
 
-  // ── Zap chain ─────────────────────────────────────────────────────────────
+  // ── Zap chain ──────────────────────────────────────────────────────────────
 
-  triggerZapChain(x, y) {
-    const flash = this.scene.add.circle(x, y, 8, 0xffff00, 1).setDepth(17);
-    this.scene.tweens.add({
-      targets: flash, radius: 60, alpha: 0, duration: 300,
-      onComplete: () => flash.destroy(),
-    });
+  triggerZapChain(game, pos) {
+    this._burst(pos, 0xffff00, 1.2, 0.3);
 
     let hitsLeft = ZAP_HITS;
-    const doZapHit = () => {
+    const doZap = () => {
       if (hitsLeft <= 0) return;
       hitsLeft--;
       audioManager.sfxZapHit();
 
-      this.scene.enemies.getChildren().forEach(enemy => {
-        if (!enemy.active) return;
-        this.showZapOnEnemy(enemy.x, enemy.y);
-        this.flashZap(enemy);
+      game.enemies.filter(e => e.active).forEach(enemy => {
+        this._zapFlash(enemy.mesh);
         enemy.health -= ZAP_DAMAGE;
-        if (enemy.health <= 0) this.killEnemy(enemy);
+        if (enemy.health <= 0) this.killEnemy(game, enemy);
       });
+      game.enemies = game.enemies.filter(e => e.active);
 
-      if (this.scene.boss && this.scene.boss.active) {
-        this.showZapOnEnemy(this.scene.boss.x, this.scene.boss.y);
-        this.scene.bossController.damageBoss(ZAP_DAMAGE);
-      }
+      if (game.boss && game.boss.active) game.bossController.damageBoss(ZAP_DAMAGE);
 
-      const ring = this.scene.add.circle(x, y, 5, 0xffff00, 0.6).setDepth(15);
-      this.scene.tweens.add({
-        targets: ring, radius: 50 + (ZAP_HITS - hitsLeft) * 30, alpha: 0, duration: 350,
-        onComplete: () => ring.destroy(),
-      });
-
-      if (hitsLeft > 0) this.scene.time.delayedCall(ZAP_INTERVAL, doZapHit);
+      this._burst(pos, 0xffff44, 1.2 + (ZAP_HITS - hitsLeft) * 0.8, 0.35);
+      if (hitsLeft > 0) setTimeout(doZap, ZAP_INTERVAL);
     };
-    doZapHit();
+    doZap();
   }
 
-  showZapOnEnemy(x, y) {
-    const g = this.scene.add.graphics().setDepth(18);
-    g.lineStyle(2, 0xffff44, 1);
-    for (let i = 0; i < 4; i++) {
-      const a   = Math.random() * Math.PI * 2;
-      const len = 10 + Math.random() * 16;
-      const mx  = x + Math.cos(a) * len * 0.5 + (Math.random() - 0.5) * 8;
-      const my  = y + Math.sin(a) * len * 0.5 + (Math.random() - 0.5) * 8;
-      g.lineBetween(x, y, mx, my);
-      g.lineBetween(mx, my, x + Math.cos(a) * len, y + Math.sin(a) * len);
-    }
-    g.fillStyle(0xffffff, 0.9); g.fillCircle(x, y, 4);
-    this.scene.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
-  }
+  // ── Poison explosion ───────────────────────────────────────────────────────
 
-  // ── Poison explosion ──────────────────────────────────────────────────────
-
-  triggerPoisonExplosion(x, y) {
-    this._poisonVisual(x, y);
-    this.scene.cameras.main.flash(100, 0, 180, 0, false);
-    this.scene.cameras.main.shake(150, 0.006);
+  triggerPoisonExplosion(game, pos) {
+    this._burst(pos, 0x22aa00, POISON_AOE_RADIUS, 0.7);
+    this._burst(pos, 0x88ff44, POISON_AOE_RADIUS * 0.6, 0.5);
     audioManager.sfxPoisonExplode();
-    this._poisonAffectEnemies(x, y);
-    this.scene.score += 5 * this.scene.wave;
+    this._poisonAffect(game, pos);
+    game.score += 5 * game.wave;
+    if (game.boss && game.boss.active) game.bossController.onPoisonHitBoss();
   }
 
-  _poisonVisual(x, y) {
-    const outer = this.scene.add.circle(x, y, 10, 0x22aa00, 0.8).setDepth(15);
-    this.scene.tweens.add({ targets: outer, radius: POISON_AOE_RADIUS, alpha: 0, duration: 700, onComplete: () => outer.destroy() });
-    const mid = this.scene.add.circle(x, y, 8, 0x88ff44, 0.65).setDepth(16);
-    this.scene.tweens.add({ targets: mid, radius: POISON_AOE_RADIUS * 0.6, alpha: 0, duration: 500, onComplete: () => mid.destroy() });
-    const core = this.scene.add.circle(x, y, 6, 0xaaffaa, 1).setDepth(17);
-    this.scene.tweens.add({ targets: core, radius: 35, alpha: 0, duration: 220, onComplete: () => core.destroy() });
-    const sg = this.scene.add.graphics().setDepth(16);
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      sg.lineStyle(2, 0x55ff00, 0.65);
-      sg.lineBetween(x, y, x + Math.cos(a) * POISON_AOE_RADIUS * 0.45, y + Math.sin(a) * POISON_AOE_RADIUS * 0.45);
-    }
-    this.scene.tweens.add({ targets: sg, alpha: 0, duration: 700, onComplete: () => sg.destroy() });
-  }
-
-  _poisonAffectEnemies(x, y) {
-    this.scene.enemies.getChildren().filter(e => e.active).forEach(enemy => {
-      if (Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y) > POISON_AOE_RADIUS) return;
-      this.flashPoison(enemy);
+  _poisonAffect(game, pos) {
+    game.enemies.filter(e => e.active).forEach(enemy => {
+      if (enemy.mesh.position.distanceTo(pos) > POISON_AOE_RADIUS) return;
+      this.flashPoison(enemy.mesh);
       enemy.health -= POISON_DAMAGE;
-      if (enemy.health <= 0) { this.killEnemy(enemy); return; }
+      if (enemy.health <= 0) { this.killEnemy(game, enemy); return; }
       if (!enemy.poisoned) {
         enemy.poisoned = true;
-        enemy.setTint(0x55dd00);
+        this._tintMesh(enemy.mesh, 0x55dd00);
         let ticks = POISON_DOT_TICKS;
         const doDot = () => {
           if (!enemy.active || ticks <= 0) {
-            if (enemy.active) { enemy.poisoned = false; enemy.clearTint(); }
+            if (enemy.active) { enemy.poisoned = false; this._clearTint(enemy.mesh); }
             return;
           }
           ticks--;
           audioManager.sfxPoisonTick();
-          this.flashPoison(enemy);
+          this.flashPoison(enemy.mesh);
           enemy.health -= POISON_DOT_DAMAGE;
-          if (enemy.health <= 0) { this.killEnemy(enemy); return; }
-          this.scene.time.delayedCall(POISON_DOT_INTERVAL, doDot);
+          if (enemy.health <= 0) { this.killEnemy(game, enemy); return; }
+          setTimeout(doDot, POISON_DOT_INTERVAL);
         };
-        this.scene.time.delayedCall(POISON_DOT_INTERVAL, doDot);
+        setTimeout(doDot, POISON_DOT_INTERVAL);
       }
     });
+    game.enemies = game.enemies.filter(e => e.active);
   }
 
-  // ── Flashes ───────────────────────────────────────────────────────────────
+  // ── Large explosion (game over / boss death) ───────────────────────────────
 
-  flashEnemy(enemy) {
-    this.scene.tweens.add({ targets: enemy, alpha: 0.2, duration: 40, yoyo: true });
+  bigExplosion(game, pos) {
+    this._burst(pos, 0xff6600, 3.5, 0.7);
+    this._burst(pos, 0xff2200, 5.0, 1.0);
+    this._burst(pos, 0xffee00, 2.0, 0.5);
+    game.hud.screenShake();
+    audioManager.sfxPlayerDie();
   }
 
-  flashIce(enemy) {
-    this.scene.tweens.add({ targets: enemy, alpha: 0.3, duration: 60, yoyo: true });
+  bossDeathExplosions(game, pos) {
+    for (let i = 0; i < 6; i++) {
+      setTimeout(() => {
+        const offset = new THREE.Vector3(
+          (Math.random() - 0.5) * 3,
+          (Math.random() - 0.5) * 1.5,
+          (Math.random() - 0.5) * 3
+        );
+        this._burst(pos.clone().add(offset), 0xff6600, 1.5 + i * 0.4, 0.38);
+        this._burst(pos.clone().add(offset), 0xffaa00, 0.8, 0.28);
+      }, i * 120);
+    }
+    game.hud.screenShake();
   }
 
-  flashZap(enemy) {
-    this.scene.tweens.add({
-      targets: enemy, alpha: 0.2, duration: 40, yoyo: true,
-      onComplete: () => { if (enemy.active) enemy.setAlpha(1); },
-    });
+  // ── Flash helpers ──────────────────────────────────────────────────────────
+
+  flashIce(mesh) {
+    const mats = this._getMats(mesh);
+    mats.forEach(m => { m.emissive = new THREE.Color(0x88ccff); m.emissiveIntensity = 1.2; });
+    setTimeout(() => mats.forEach(m => { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; }), 80);
   }
 
-  flashPoison(enemy) {
-    this.scene.tweens.add({ targets: enemy, alpha: 0.25, duration: 55, yoyo: true });
+  _zapFlash(mesh) {
+    const mats = this._getMats(mesh);
+    mats.forEach(m => { m.emissive = new THREE.Color(0xffff00); m.emissiveIntensity = 1.5; });
+    setTimeout(() => mats.forEach(m => { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; }), 60);
+  }
+
+  flashPoison(mesh) {
+    const mats = this._getMats(mesh);
+    mats.forEach(m => { m.emissive = new THREE.Color(0x55ff00); m.emissiveIntensity = 1.0; });
+    setTimeout(() => mats.forEach(m => { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; }), 70);
+  }
+
+  _tintMesh(mesh, hex) {
+    const mats = this._getMats(mesh);
+    mats.forEach(m => { m.emissive = new THREE.Color(hex); m.emissiveIntensity = 0.5; });
+  }
+
+  _clearTint(mesh) {
+    const mats = this._getMats(mesh);
+    mats.forEach(m => { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; });
+  }
+
+  // ── Core burst helper ──────────────────────────────────────────────────────
+
+  _burst(pos, color, maxRadius, duration) {
+    const geo = new THREE.SphereGeometry(0.5, 8, 6);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+    const m   = new THREE.Mesh(geo, mat);
+    m.position.copy(pos);
+    const eff = new ScaleFadeEffect(this.scene.threeScene, m, maxRadius * 2, duration, color);
+    this._effects.push(eff);
   }
 }

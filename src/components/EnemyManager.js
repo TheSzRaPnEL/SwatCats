@@ -1,11 +1,12 @@
 import { ENEMY_HEALTH } from '../constants/gameConstants.js';
 
+const BASE_SPEED = 4.2;   // world units / second
+const SPEED_WAVE = 0.12;  // added per wave
+
 export class EnemyManager {
   constructor(scene) {
     this.scene = scene;
   }
-
-  // ── Wave helpers ──────────────────────────────────────────────────────────
 
   spawnDelay() {
     return Math.max(600, 1600 - (this.scene.wave - 1) * 120);
@@ -19,53 +20,63 @@ export class EnemyManager {
     return Math.max(1, Math.round(ENEMY_HEALTH * Math.pow(1.2, this.scene.wave - 1)));
   }
 
-  // ── Spawn ─────────────────────────────────────────────────────────────────
-
   spawnEnemy() {
-    if (this.scene.gameOver) return;
-    const x     = Phaser.Math.Between(24, this.scene.W - 24);
-    const enemy = this.scene.enemies.create(x, -40, 'enemy');
-    if (!enemy) return;
+    const g = this.scene;
+    if (g.gameOver || !g.gameRunning) return;
 
-    enemy.setDepth(8);
-    enemy.health    = this.weakestEnemyHP();
-    enemy.slowed    = false;
-    enemy.waveTween = null;
+    const x = -7.0 + Math.random() * 14.0;
+    const mesh = g.modelFactory.createEnemy();
+    mesh.position.set(x, 1.0, -24);
+    g.threeScene.add(mesh);
 
-    this._applyMovementPattern(enemy);
-  }
+    const baseVZ = (BASE_SPEED + (g.wave - 1) * SPEED_WAVE) * (0.85 + Math.random() * 0.3);
 
-  _applyMovementPattern(enemy) {
-    const pattern = Phaser.Math.Between(0, 2);
-    const baseVY  = Math.round(
-      Phaser.Math.Between(100, 160) * Math.pow(1.05, this.scene.wave - 1)
-    );
+    const pattern = Math.floor(Math.random() * 3);
+    let vx = 0;
+    let sineAmp = 0, sineFreq = 0, sineBaseX = x;
 
-    if (pattern === 0) {
-      enemy.setVelocityY(baseVY);
-    } else if (pattern === 1) {
-      const dir = Phaser.Math.Between(0, 1) ? 1 : -1;
-      enemy.setVelocityX(dir * Phaser.Math.Between(70, 130));
-      enemy.setVelocityY(baseVY);
-    } else {
-      enemy.setVelocityY(baseVY);
-      enemy.waveTween = this.scene.tweens.add({
-        targets: enemy,
-        x: { value: `+=${Phaser.Math.Between(0, 1) ? 120 : -120}`, duration: 1400 },
-        ease: 'Sine.easeInOut', yoyo: true, repeat: -1,
-      });
+    if (pattern === 1) {
+      vx = (Math.random() > 0.5 ? 1 : -1) * (2.2 + Math.random() * 2.5);
+    } else if (pattern === 2) {
+      sineAmp  = 1.8 + Math.random() * 2.5;
+      sineFreq = 0.8 + Math.random() * 0.8;
     }
-  }
 
-  // ── Shooting ──────────────────────────────────────────────────────────────
+    g.enemies.push({
+      mesh,
+      vx,
+      vz: baseVZ,
+      sineAmp,
+      sineFreq,
+      sineBaseX,
+      sineT: Math.random() * Math.PI * 2, // random phase
+      health: this.weakestEnemyHP(),
+      slowed: false,
+      poisoned: false,
+      active: true,
+    });
+  }
 
   enemiesShoot() {
-    if (this.scene.gameOver) return;
-    this.scene.enemies.getChildren().forEach(enemy => {
-      if (!enemy.active || enemy.y < 20 || enemy.y > this.scene.H * 0.75) return;
-      const b = this.scene.enemyBullets.create(enemy.x, enemy.y + 26, 'ebullet');
-      if (!b) return;
-      b.setVelocityY(280 + this.scene.wave * 10).setDepth(7);
+    const g = this.scene;
+    if (g.gameOver || !g.gameRunning) return;
+
+    g.enemies.forEach(enemy => {
+      if (!enemy.active) return;
+      const ez = enemy.mesh.position.z;
+      // Only shoot when in the "visible lane" (not too far, not past player)
+      if (ez < -22 || ez > g.playerPos.z + 2) return;
+
+      const mesh = g.modelFactory.createEnemyBullet();
+      mesh.position.set(
+        enemy.mesh.position.x,
+        enemy.mesh.position.y,
+        enemy.mesh.position.z + 0.9 // muzzle at nose (+Z direction)
+      );
+      g.threeScene.add(mesh);
+
+      const speed = 9 + g.wave * 0.3;
+      g.enemyBullets.push({ mesh, vx: 0, vy: 0, vz: speed, active: true });
     });
   }
 }
